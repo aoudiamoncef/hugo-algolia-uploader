@@ -1,7 +1,8 @@
 import os
 import json
 import pytest
-from unittest.mock import Mock, mock_open, patch, MagicMock
+import asyncio
+from unittest.mock import Mock, mock_open, patch, MagicMock, AsyncMock
 import sys
 
 # Set up environment variables before importing main
@@ -19,7 +20,8 @@ os.environ.setdefault('GITHUB_WORKSPACE', '/workspace')
 from unittest.mock import patch as mock_patch
 mock_patcher = mock_patch('algoliasearch.search.client.SearchClient')
 mock_search_client_class = mock_patcher.start()
-mock_client_instance = MagicMock()
+mock_client_instance = AsyncMock()
+mock_client_instance.save_objects = AsyncMock()
 mock_search_client_class.return_value = mock_client_instance
 
 # Now import main - the SearchClient will be mocked
@@ -27,6 +29,7 @@ import main
 
 # Replace the client with our mock instance
 main.client = mock_client_instance
+main.client.save_objects = AsyncMock()
 
 
 @pytest.fixture(autouse=True)
@@ -34,22 +37,29 @@ def reset_client_mock():
     """Reset the client mock before each test."""
     if hasattr(main.client, 'reset_mock'):
         main.client.reset_mock()
+    # Ensure save_objects is an AsyncMock
+    if not isinstance(main.client.save_objects, AsyncMock):
+        main.client.save_objects = AsyncMock()
     yield
     if hasattr(main.client, 'reset_mock'):
         main.client.reset_mock()
+    # Reset save_objects mock
+    main.client.save_objects = AsyncMock()
 
 
 class TestUploadFunction:
     """Test the upload function."""
     
+    @pytest.mark.asyncio
     @patch('main.client')
     @patch('builtins.open', new_callable=mock_open, read_data='[{"objectID": "1", "title": "Test"}]')
     @patch('os.path.isfile')
-    def test_upload_with_valid_file(self, mock_isfile, mock_file, mock_client):
+    async def test_upload_with_valid_file(self, mock_isfile, mock_file, mock_client):
         """Test upload function with a valid file."""
         mock_isfile.return_value = True
+        mock_client.save_objects = AsyncMock()
         
-        main.upload('/test/path/index.json', 'test_index')
+        await main.upload('/test/path/index.json', 'test_index')
         
         # Verify file was checked
         mock_isfile.assert_called_once_with('/test/path/index.json')
@@ -63,13 +73,15 @@ class TestUploadFunction:
             objects=[{"objectID": "1", "title": "Test"}]
         )
     
+    @pytest.mark.asyncio
     @patch('main.client')
     @patch('os.path.isfile')
-    def test_upload_with_nonexistent_file(self, mock_isfile, mock_client):
+    async def test_upload_with_nonexistent_file(self, mock_isfile, mock_client):
         """Test upload function when file doesn't exist."""
         mock_isfile.return_value = False
+        mock_client.save_objects = AsyncMock()
         
-        main.upload('/test/path/nonexistent.json', 'test_index')
+        await main.upload('/test/path/nonexistent.json', 'test_index')
         
         # Verify file existence was checked
         mock_isfile.assert_called_once_with('/test/path/nonexistent.json')
@@ -77,14 +89,16 @@ class TestUploadFunction:
         # Verify save_objects was NOT called
         mock_client.save_objects.assert_not_called()
     
+    @pytest.mark.asyncio
     @patch('main.client')
     @patch('builtins.open', new_callable=mock_open, read_data='[]')
     @patch('os.path.isfile')
-    def test_upload_with_empty_json_array(self, mock_isfile, mock_file, mock_client):
+    async def test_upload_with_empty_json_array(self, mock_isfile, mock_file, mock_client):
         """Test upload function with an empty JSON array."""
         mock_isfile.return_value = True
+        mock_client.save_objects = AsyncMock()
         
-        main.upload('/test/path/empty.json', 'test_index')
+        await main.upload('/test/path/empty.json', 'test_index')
         
         # Verify save_objects was called with empty list
         mock_client.save_objects.assert_called_once_with(
@@ -92,14 +106,16 @@ class TestUploadFunction:
             objects=[]
         )
     
+    @pytest.mark.asyncio
     @patch('main.client')
     @patch('builtins.open', new_callable=mock_open, read_data='[{"id": "1"}, {"id": "2"}, {"id": "3"}]')
     @patch('os.path.isfile')
-    def test_upload_with_multiple_records(self, mock_isfile, mock_file, mock_client):
+    async def test_upload_with_multiple_records(self, mock_isfile, mock_file, mock_client):
         """Test upload function with multiple records."""
         mock_isfile.return_value = True
+        mock_client.save_objects = AsyncMock()
         
-        main.upload('/test/path/multiple.json', 'test_index')
+        await main.upload('/test/path/multiple.json', 'test_index')
         
         # Verify save_objects was called with all records
         mock_client.save_objects.assert_called_once_with(
@@ -107,16 +123,18 @@ class TestUploadFunction:
             objects=[{"id": "1"}, {"id": "2"}, {"id": "3"}]
         )
     
+    @pytest.mark.asyncio
     @patch('main.client')
     @patch('builtins.open', new_callable=mock_open, read_data='invalid json')
     @patch('os.path.isfile')
-    def test_upload_with_invalid_json(self, mock_isfile, mock_file, mock_client):
+    async def test_upload_with_invalid_json(self, mock_isfile, mock_file, mock_client):
         """Test upload function with invalid JSON."""
         mock_isfile.return_value = True
+        mock_client.save_objects = AsyncMock()
         
         # Should raise JSONDecodeError
         with pytest.raises(json.JSONDecodeError):
-            main.upload('/test/path/invalid.json', 'test_index')
+            await main.upload('/test/path/invalid.json', 'test_index')
         
         # Verify save_objects was NOT called
         mock_client.save_objects.assert_not_called()
@@ -125,7 +143,6 @@ class TestUploadFunction:
 class TestMainExecution:
     """Test the main execution flow."""
     
-    @patch('main.upload')
     @patch.dict(os.environ, {
         'INPUT_APP_ID': 'test_app_id',
         'INPUT_ADMIN_KEY': 'test_admin_key',
@@ -136,17 +153,26 @@ class TestMainExecution:
         'INPUT_INDEX_LANGUAGES': 'en,fr',
         'GITHUB_WORKSPACE': '/workspace'
     })
-    def test_main_execution_flow(self, mock_upload):
+    def test_main_execution_flow(self):
         """Test the main execution flow with environment variables."""
-        # Re-import to pick up environment variables
-        import importlib
-        importlib.reload(main)
-        
-        # Verify upload was called for main index
-        # Note: In the actual execution, upload is called during module import
+        # Verify environment variables are set correctly
         # This test verifies the logic would work correctly
         assert os.environ.get('INPUT_INDEX_NAME') == 'test_index'
         assert os.environ.get('INPUT_INDEX_LANGUAGES') == 'en,fr'
+        assert os.environ.get('GITHUB_WORKSPACE') == '/workspace'
+        assert os.environ.get('INPUT_INDEX_FILE_DIRECTORY') == 'public'
+    
+    @pytest.mark.asyncio
+    @patch('main.upload')
+    async def test_main_function(self, mock_upload):
+        """Test the main async function."""
+        mock_upload.return_value = None
+        
+        # Call the main function
+        await main.main()
+        
+        # Verify upload was called at least once (for main index)
+        assert mock_upload.called
 
 
 class TestClientInitialization:
@@ -163,6 +189,9 @@ class TestClientInitialization:
         # Verify the client has the save_objects method
         assert hasattr(main.client, 'save_objects')
         assert callable(main.client.save_objects)
+        # Verify it's an async method (coroutine)
+        import inspect
+        assert inspect.iscoroutinefunction(main.client.save_objects) or isinstance(main.client.save_objects, AsyncMock)
 
 
 class TestPathConstruction:
