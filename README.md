@@ -7,6 +7,75 @@ Hugo Algolia Uploader enables you to upload your hugo algolia index file automat
 
 For generic usage please see [Algolia Uploader ](https://github.com/wangchucheng/algolia-uploader).
 
+## Requirements
+
+This project requires Python 3.9+ and the following Python package:
+
+- `algoliasearch>=4.0.0,<5.0.0` - Algolia Search API client library (v4)
+
+You can install the dependencies using:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Migration to v4
+
+This project has been updated to use Algolia Python SDK v4, which includes:
+- Updated import path: `from algoliasearch.search.client import SearchClient`
+- Simplified client initialization: `SearchClient(app_id, api_key)`
+- Direct method calls without `init_index()`
+- Improved performance and modern API design
+
+For more information, see the [Algolia Python SDK v4 documentation](https://www.algolia.com/doc/api-client/getting-started/install/python/).
+
+## Development
+
+### Running Tests
+
+This project includes comprehensive unit tests to ensure code quality and reliability.
+
+#### Install Development Dependencies
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+#### Run Tests
+
+Run all tests:
+
+```bash
+pytest
+```
+
+Run tests with coverage report:
+
+```bash
+pytest --cov=main --cov-report=term-missing
+```
+
+Run tests in verbose mode:
+
+```bash
+pytest -v
+```
+
+#### Test Coverage
+
+The test suite covers:
+- File upload functionality with various scenarios
+- JSON parsing and validation
+- Path construction logic
+- Index name generation with multiple languages
+- Environment variable handling
+- Error cases (missing files, invalid JSON)
+
+Coverage reports are generated in:
+- Terminal output
+- HTML format in `htmlcov/` directory
+- XML format in `coverage.xml`
+
 ## Try Hugo Algolia Uploader
 
 You can use the following example as a template to create a new file with any name under `.github/workflows/`.
