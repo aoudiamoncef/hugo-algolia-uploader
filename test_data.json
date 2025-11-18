@@ -1,0 +1,23 @@
+[
+  {
+    "objectID": "1",
+    "title": "Introduction to Hugo",
+    "content": "Hugo is one of the most popular open-source static site generators.",
+    "url": "/posts/intro-to-hugo/",
+    "tags": ["hugo", "static-site", "web-development"]
+  },
+  {
+    "objectID": "2",
+    "title": "Algolia Search Integration",
+    "content": "Learn how to integrate Algolia search into your Hugo website.",
+    "url": "/posts/algolia-integration/",
+    "tags": ["algolia", "search", "hugo"]
+  },
+  {
+    "objectID": "3",
+    "title": "Automating Deployments",
+    "content": "Use GitHub Actions to automate your Hugo site deployment.",
+    "url": "/posts/automating-deployments/",
+    "tags": ["github-actions", "ci-cd", "automation"]
+  }
+]
